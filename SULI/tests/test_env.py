@@ -36,7 +36,7 @@ def test_done():
     assert done is False
 
     states, reward, done = env.execute(actions=0)
-    assert done is True
+    assert done is False
 
     # states, reward, done = env.execute(actions=0)
     print(f"states: {states}")
@@ -48,7 +48,6 @@ def test_done():
 
 def test_reset():
     env = CustomEnvironment()
-
     assert env.extraCounter == 3
     assert env.agent_pos == 3
     assert len(env.GRID) == env.SAMPLES
@@ -76,13 +75,13 @@ def test_seven_steps():
     env = CustomEnvironment()
 
     state_reward_done = []
-    for step in range(7):
+    for step in range(97):
         state_reward_done.append(env.execute(actions=0))
 
     pprint.pprint(state_reward_done)
 
-    assert env.extraCounter == 10
-    assert state_reward_done[6][2] is True
+    assert env.extraCounter == 100
+    assert state_reward_done[96][2] is True
 
 
 def test_stepthru_reset():
@@ -92,16 +91,85 @@ def test_stepthru_reset():
     assert env.extraCounter == env.startingPoint
 
     state_reward_done = []
-    for step in range(7):
+    for step in range(97):
         state_reward_done.append(env.execute(actions=0))
 
     env.reset()
 
-    for step in range(7):
+    for step in range(97):
         state_reward_done.append(env.execute(actions=0))
 
     pprint.pprint(state_reward_done)
 
-    assert env.extraCounter == 10
-    assert state_reward_done[6][2] is True
+    assert env.extraCounter == 100
+    assert state_reward_done[96][2] is True
     assert state_reward_done[-1][2] is True
+
+def test_shape_setup():
+    env = CustomEnvironment()
+
+    assert len(env.shape[0]) == env.TRIALS
+    assert len(env.shape) == env.shapeHeight
+
+    for i in range(env.SAMPLES):
+        for j in range(env.TRIALS):
+            assert(env.GRID[i][j] == env.shape[i + 2][j])
+
+    for i in range(env.TRIALS):
+        assert env.shape[0][i] == env.TRIALS
+        assert env.shape[1][i] == env.SAMPLES
+
+    env.reset()
+
+    assert len(env.shape[0]) == env.TRIALS
+    assert len(env.shape) == env.shapeHeight
+
+    for i in range(env.SAMPLES):
+        for j in range(env.TRIALS):
+            assert (env.GRID[i][j] == env.shape[i + 2][j])
+
+    for i in range(env.TRIALS):
+        assert env.shape[0][i] == env.TRIALS
+        assert env.shape[1][i] == env.SAMPLES
+
+def test_shape_execute_once():
+    env = CustomEnvironment()
+
+    env.execute(actions=0)
+
+    assert len(env.shape[0]) == env.TRIALS
+    assert len(env.shape) == env.shapeHeight
+
+    assert env.shape[0][env.startingPoint] == env.startingPoint
+    assert env.shape[1][env.startingPoint] >= 0
+    assert env.shape[1][env.startingPoint] < env.SAMPLES
+
+
+    for i in range(env.SAMPLES):
+        for j in range(env.TRIALS):
+            assert (env.GRID[i][j] == env.shape[i + 2][j])
+
+
+def test_shape_execute_all():
+    env = CustomEnvironment()
+
+    state_reward_done = []
+    for step in range(97):
+        state_reward_done.append(env.execute(actions=0))
+
+    assert len(env.shape[0]) == env.TRIALS
+    assert len(env.shape) == env.shapeHeight
+
+    for i in range(env.TRIALS):
+        if i >= env.startingPoint:
+            assert env.shape[0][i] == i
+            assert env.shape[1][i] >= 0
+            assert env.shape[1][i] < env.SAMPLES
+
+    for i in range(env.SAMPLES):
+        for j in range(env.TRIALS):
+            assert (env.GRID[i][j] == env.shape[i + 2][j])
+
+
+    print(env.GRID)
+    print(env.shape)
