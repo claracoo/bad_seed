@@ -145,9 +145,9 @@ class CustomEnvironment(Environment):
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
             print(actions, maxStdDev)
             if actions == maxStdDev[0]:
-                self.reward += 1
+                self.reward += 3
             if actions == maxStdDev[1]:
-                self.reward += 1
+                self.reward += 2
             if actions == maxStdDev[2]:
                 self.reward += 1
             # print(maxStdDev, actions)
@@ -178,7 +178,7 @@ class CustomEnvironment(Environment):
         if done:
             # reward += 1
             self.sum += 1
-            if self.sum > 2:
+            if self.sum > 200:
                 mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -195,7 +195,7 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(2):
+    for _ in range(200):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -207,7 +207,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(1):
+    for _ in range(100):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
