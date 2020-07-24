@@ -174,8 +174,8 @@ class CustomEnvironment(Environment):
         # Are we at the right of the grid?
         done = bool(self.agent_pos == self.TRIALS)
 
+        reward = self.reward
         if done:
-            reward = self.reward
             # reward += 1
             self.sum += 1
             if self.sum > 2:
