@@ -35,7 +35,7 @@ class CustomEnvironment(Environment):
             self.agent_pos = self.startingPoint
             self._max_episode_timesteps = 500
             self.TRIALS = 100
-            self.SAMPLES = 5
+            self.SAMPLES = 10
             self.GRID = []
             gridCopy = []
             self.minSampling = {}
@@ -144,20 +144,24 @@ class CustomEnvironment(Environment):
                 self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
             print(actions, maxStdDev)
-            if actions == maxStdDev[0]:
-                self.reward += 3
-            if actions == maxStdDev[1]:
-                self.reward += 2
-            if actions == maxStdDev[2]:
+            print(actions, "vs.", self.shape[1][self.agent_pos - 1])
+            if actions != self.shape[1][self.agent_pos - 1]:
                 self.reward += 1
-            # print(maxStdDev, actions)
+            # elif actions == maxStdDev[0]:
+            #     self.reward += 3
+            # elif actions == maxStdDev[1]:
+            #     self.reward += 2
+            # elif actions == maxStdDev[2]:
+            #     self.reward += 1
+            else:
+                self.reward += 0
+                # print(maxStdDev, actions)
             # if self.agent_pos <= self.TRIALS:
             self.shape[0][self.agent_pos] = self.agent_pos
             self.shape[1][self.agent_pos] = actions
             self.GRID[actions][self.agent_pos] = random()
             self.minSampling[actions] += 1
             self.agent_pos += 1
-            print(self.reward)
         else:
             raise ValueError("Received invalid action={} which is not part of the action space".format(actions))
             # Account for the boundaries of the grid
@@ -170,15 +174,15 @@ class CustomEnvironment(Environment):
         #         CustomEnvironment.secondCount += 1
         #     if actions == maxStdDev[2]:
         #         CustomEnvironment.thirdCount += 1
-        print("shape", self.shape)
         # Are we at the right of the grid?
         done = bool(self.agent_pos == self.TRIALS)
 
         reward = self.reward
+        print(reward)
         if done:
             # reward += 1
             self.sum += 1
-            if self.sum > 200:
+            if self.sum > 20:
                 mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -195,7 +199,7 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(200):
+    for _ in range(20):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -207,7 +211,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(100):
+    for _ in range(10):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
