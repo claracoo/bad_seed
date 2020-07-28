@@ -113,7 +113,7 @@ def test_shape_setup():
 
     for i in range(env.SAMPLES):
         for j in range(env.TRIALS):
-            assert(env.GRID[i][j] == env.shape[i + 2][j])
+            assert(env.GRID[i][j] == env.shape[i + 3][j])
 
     for i in range(env.TRIALS):
         assert env.shape[0][i] == env.TRIALS
@@ -126,7 +126,7 @@ def test_shape_setup():
 
     for i in range(env.SAMPLES):
         for j in range(env.TRIALS):
-            assert (env.GRID[i][j] == env.shape[i + 2][j])
+            assert (env.GRID[i][j] == env.shape[i + 3][j])
 
     for i in range(env.TRIALS):
         assert env.shape[0][i] == env.TRIALS
@@ -147,7 +147,7 @@ def test_shape_execute_once():
 
     for i in range(env.SAMPLES):
         for j in range(env.TRIALS):
-            assert (env.GRID[i][j] == env.shape[i + 2][j])
+            assert (env.GRID[i][j] == env.shape[i + 3][j])
 
 
 def test_shape_execute_all():
@@ -168,7 +168,7 @@ def test_shape_execute_all():
 
     for i in range(env.SAMPLES):
         for j in range(env.TRIALS):
-            assert (env.GRID[i][j] == env.shape[i + 2][j])
+            assert (env.GRID[i][j] == env.shape[i + 3][j])
 
 
     print(env.GRID)

@@ -58,7 +58,7 @@ class CustomEnvironment(Environment):
 
             # second length will be the actions, but actions is not in scope in init
             # the width should always be the number of trials
-            self.shapeHeight = len(self.GRID) + len([self.agent_pos]) + len([0])
+            self.shapeHeight = len(self.GRID) + len([self.agent_pos]) + len([0]) + len([0])
 
             for i in range(self.SAMPLES):
                 self.minSampling[i] = 0
@@ -91,10 +91,13 @@ class CustomEnvironment(Environment):
             #same with the actions, never will be samples, so good null value
             agent_pos_arr = []
             actions_arr = []
+            rewards_arr = []
             for i in range(self.TRIALS):
                 agent_pos_arr.append(self.TRIALS)
                 actions_arr.append(self.SAMPLES)
+                rewards_arr.append((0))
 
+            self.shape.insert(0, rewards_arr)
             self.shape.insert(0, actions_arr)
             self.shape.insert(0, agent_pos_arr)
 
@@ -126,8 +129,9 @@ class CustomEnvironment(Environment):
         for i in range(self.TRIALS):
             self.shape[0][i] = self.TRIALS
             self.shape[1][i] = self.SAMPLES
+            self.shape[2][i] = 0
             for j in range(self.SAMPLES):
-                self.shape[j + 2] = self.GRID[j]
+                self.shape[j + 3] = self.GRID[j]
 
         for i in range(self.SAMPLES):
             self.minSampling[i] = 0
@@ -145,8 +149,10 @@ class CustomEnvironment(Environment):
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
             print(actions, maxStdDev)
             print(actions, "vs.", self.shape[1][self.agent_pos - 1])
-            if actions != self.shape[1][self.agent_pos - 1]:
-                self.reward += 1
+            if actions == self.shape[1][self.agent_pos - 1]:
+                self.reward -= 2
+            elif actions == self.shape[1][self.agent_pos - 2]:
+                self.reward -= 1
             # elif actions == maxStdDev[0]:
             #     self.reward += 3
             # elif actions == maxStdDev[1]:
@@ -154,11 +160,12 @@ class CustomEnvironment(Environment):
             # elif actions == maxStdDev[2]:
             #     self.reward += 1
             else:
-                self.reward += 0
+                self.reward += 5
                 # print(maxStdDev, actions)
             # if self.agent_pos <= self.TRIALS:
             self.shape[0][self.agent_pos] = self.agent_pos
             self.shape[1][self.agent_pos] = actions
+            self.shape[2][self.agent_pos] = self.reward
             self.GRID[actions][self.agent_pos] = random()
             self.minSampling[actions] += 1
             self.agent_pos += 1
@@ -182,7 +189,7 @@ class CustomEnvironment(Environment):
         if done:
             # reward += 1
             self.sum += 1
-            if self.sum > 20:
+            if self.sum > 200:
                 mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -196,10 +203,10 @@ def runEnv():
     environment = Environment.create(
         environment=CustomEnvironment, max_episode_timesteps=500
     )
-    agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
+    agent = Agent.create(agent='ppo', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(20):
+    for _ in range(200):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -211,7 +218,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(10):
+    for _ in range(100):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
