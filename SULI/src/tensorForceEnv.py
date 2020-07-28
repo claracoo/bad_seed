@@ -150,9 +150,9 @@ class CustomEnvironment(Environment):
             print(actions, maxStdDev)
             print(actions, "vs.", self.shape[1][self.agent_pos - 1])
             if actions == self.shape[1][self.agent_pos - 1]:
-                self.reward -= 2
-            elif actions == self.shape[1][self.agent_pos - 2]:
                 self.reward -= 1
+            # elif actions == self.shape[1][self.agent_pos - 2]:
+            #     self.reward -= 1
             # elif actions == maxStdDev[0]:
             #     self.reward += 3
             # elif actions == maxStdDev[1]:
@@ -160,7 +160,7 @@ class CustomEnvironment(Environment):
             # elif actions == maxStdDev[2]:
             #     self.reward += 1
             else:
-                self.reward += 5
+                self.reward += 1
                 # print(maxStdDev, actions)
             # if self.agent_pos <= self.TRIALS:
             self.shape[0][self.agent_pos] = self.agent_pos
