@@ -6,6 +6,8 @@ from tensorforce.environments import Environment
 from tensorforce.agents import Agent
 from tensorforce.execution import Runner
 from heapq import nlargest
+import matplotlib.pyplot as plt
+import numpy as np
 
 
 def stdDeviaiton(array):
@@ -15,6 +17,19 @@ def stdDeviaiton(array):
             cleanedUp = np.append(cleanedUp, elem)
     return np.std(cleanedUp)
 
+
+def findLastNonLen(action_arr, sampleCount):
+    for i in range(len(action_arr)):
+        if action_arr[i] == sampleCount and i > 2:
+            return i - 1
+    return len(action_arr) - 1
+
+
+# fakeArr = np.array([1, 1, 1, 1, 1, 1, 1, 2, 1, 5, 5, 5])
+# print(np.array([fakeArr[findLastNonLen(fakeArr, 5)], fakeArr[findLastNonLen(fakeArr, 5) - 1]]))
+# print(np.array([2, 1]).shape)
+
+
 class CustomEnvironment(Environment):
     # LEFT = 0
     # RIGHT = 1
@@ -23,6 +38,13 @@ class CustomEnvironment(Environment):
     firstCount = 0
     secondCount = 0
     thirdCount = 0
+    repeatCounter_arr = np.array([])
+    skippedRepeat_arr = np.array([])
+    # allActions = np.array([])
+    allEpisodes = np.array([])
+
+    for i in range(3000):
+        allEpisodes = np.append(allEpisodes, i)
 
 
     # def __init__(self):
@@ -43,6 +65,8 @@ class CustomEnvironment(Environment):
             # self.stdDevSim = {}
             self.sum = 0
             self.reward = 0
+            self.repeatCounter = 0
+            self.skippedRepeat = 0
             # self.simulation = [[0, 0, 0, 0, 0, 0, 7, 2, 0, 0], [0, 3, 0, 0, 0, 3, 0, 0, 0, 0],[0, 0, 2, 9, 0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 1, 0, 0, 1, 0, 0],[0, 0, 0, 0, 0, 0, 1, 0, 8, 0]]
 
 
@@ -103,7 +127,7 @@ class CustomEnvironment(Environment):
 
 
     def states(self):
-        return dict(type='float', shape=(self.shapeHeight, self.TRIALS))
+        return dict(type='float', shape=(len([self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES)], self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES) - 1]]),))
 
     def actions(self):
         return dict(type='int', num_values=self.SAMPLES)
@@ -118,6 +142,8 @@ class CustomEnvironment(Environment):
         # self.extraCounter = self.startingPoint
         CustomEnvironment.extraCounter = self.startingPoint
         self.reward = 0
+        self.repeatCounter = 0
+        self.skippedRepeat = 0
         self.agent_pos = self.startingPoint
         for i in range(self.SAMPLES):
             for j in range(self.TRIALS):
@@ -136,7 +162,7 @@ class CustomEnvironment(Environment):
         for i in range(self.SAMPLES):
             self.minSampling[i] = 0
         # here we convert to float32 to make it more general (in case we want to use continuous actions)
-        return np.array(self.shape).astype(np.float32)
+        return np.array([0, 0]).astype(np.float32)
 
     def execute(self, actions):
         # self.extraCounter += 1
@@ -144,6 +170,7 @@ class CustomEnvironment(Environment):
         maxStdDev = []
         reward = 0
         if (actions >= 0 and actions < self.SAMPLES):
+            # CustomEnvironment.allActions = np.append(CustomEnvironment.allActions, actions)
             for i in range(self.SAMPLES):
                 self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
@@ -151,8 +178,10 @@ class CustomEnvironment(Environment):
             print(actions, "vs.", self.shape[1][self.agent_pos - 1])
             if actions == self.shape[1][self.agent_pos - 1]:
                 self.reward -= 1
-            # elif actions == self.shape[1][self.agent_pos - 2]:
-            #     self.reward -= 1
+                self.repeatCounter += 1
+            elif actions == self.shape[1][self.agent_pos - 2]:
+                self.reward += 0
+                self.skippedRepeat += 1
             # elif actions == maxStdDev[0]:
             #     self.reward += 3
             # elif actions == maxStdDev[1]:
@@ -160,7 +189,7 @@ class CustomEnvironment(Environment):
             # elif actions == maxStdDev[2]:
             #     self.reward += 1
             else:
-                self.reward += 1
+                self.reward += 5
                 # print(maxStdDev, actions)
             # if self.agent_pos <= self.TRIALS:
             self.shape[0][self.agent_pos] = self.agent_pos
@@ -187,26 +216,29 @@ class CustomEnvironment(Environment):
         reward = self.reward
         print(reward)
         if done:
+            CustomEnvironment.repeatCounter_arr = np.append(CustomEnvironment.repeatCounter_arr, self.repeatCounter)
+            CustomEnvironment.skippedRepeat_arr = np.append(CustomEnvironment.skippedRepeat_arr, self.skippedRepeat)
             # reward += 1
             self.sum += 1
-            if self.sum > 200:
-                mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
-                CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
-                CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
-                CustomEnvironment.thirdCount += self.minSampling[mostChosen[2]]
+            if self.sum > 2000:
+                # mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
+                # CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
+                # CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
+                # CustomEnvironment.thirdCount += self.minSampling[mostChosen[2]]
                 CustomEnvironment.sum += reward
             print(self.minSampling)
-        returning = np.array(self.shape).astype(np.float32), reward, done
+        print("check", self.shape[1])
+        returning = np.array([self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES)], self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES) - 1]]).astype(np.float32), reward, done
         return returning
 
 def runEnv():
     environment = Environment.create(
         environment=CustomEnvironment, max_episode_timesteps=500
     )
-    agent = Agent.create(agent='ppo', environment=environment, batch_size=10, learning_rate=1e-3)
+    agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(200):
+    for _ in range(2000):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -218,7 +250,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(100):
+    for _ in range(1000):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
@@ -228,12 +260,34 @@ def runEnv():
             sum_rewards += reward
 
     # print('Mean episode reward:', sum_rewards / 100)
-    print(CustomEnvironment.firstCount, ",", CustomEnvironment.secondCount, ",", CustomEnvironment.thirdCount)
+    # print(CustomEnvironment.firstCount, ",", CustomEnvironment.secondCount, ",", CustomEnvironment.thirdCount)
     print(CustomEnvironment.sum)
 
     # Close agent and environment
     agent.close()
     environment.close()
 
+
+
+def makePlot():
+    # Data for plotting
+    x = CustomEnvironment.skippedRepeat_arr
+    t = CustomEnvironment.repeatCounter_arr
+    s = CustomEnvironment.allEpisodes
+
+
+    fig, ax = plt.subplots()
+    ax.plot(s, t)
+    ax.plot(s, x)
+
+
+    ax.set(xlabel='Episode', ylabel='Number of Repeated Actions',
+           title='Repeats per Episode')
+    ax.grid()
+
+    fig.savefig("test.png")
+    plt.show()
+
 if __name__ == "__main__":
     runEnv()
+    makePlot()
