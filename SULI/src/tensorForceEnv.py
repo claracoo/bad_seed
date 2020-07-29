@@ -127,7 +127,7 @@ class CustomEnvironment(Environment):
 
 
     def states(self):
-        return dict(type='float', shape=(len([self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES)], self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES) - 1]]),))
+        return dict(type='float', shape=(len([self.shape[1][self.agent_pos - 2], self.shape[1][self.agent_pos - 1]]),))
 
     def actions(self):
         return dict(type='int', num_values=self.SAMPLES)
@@ -162,7 +162,7 @@ class CustomEnvironment(Environment):
         for i in range(self.SAMPLES):
             self.minSampling[i] = 0
         # here we convert to float32 to make it more general (in case we want to use continuous actions)
-        return np.array([0, 0]).astype(np.float32)
+        return np.array([self.shape[1][self.agent_pos - 2], self.shape[1][self.agent_pos - 1]]).astype(np.float32)
 
     def execute(self, actions):
         # self.extraCounter += 1
@@ -180,7 +180,7 @@ class CustomEnvironment(Environment):
                 self.reward -= 1
                 self.repeatCounter += 1
             elif actions == self.shape[1][self.agent_pos - 2]:
-                self.reward += 0
+                self.reward -= 1
                 self.skippedRepeat += 1
             # elif actions == maxStdDev[0]:
             #     self.reward += 3
@@ -189,7 +189,7 @@ class CustomEnvironment(Environment):
             # elif actions == maxStdDev[2]:
             #     self.reward += 1
             else:
-                self.reward += 5
+                self.reward += 1
                 # print(maxStdDev, actions)
             # if self.agent_pos <= self.TRIALS:
             self.shape[0][self.agent_pos] = self.agent_pos
@@ -228,7 +228,7 @@ class CustomEnvironment(Environment):
                 CustomEnvironment.sum += reward
             print(self.minSampling)
         print("check", self.shape[1])
-        returning = np.array([self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES)], self.shape[1][findLastNonLen(self.shape[1], self.SAMPLES) - 1]]).astype(np.float32), reward, done
+        returning = np.array([self.shape[1][self.agent_pos - 2], actions]).astype(np.float32), reward, done
         return returning
 
 def runEnv():
