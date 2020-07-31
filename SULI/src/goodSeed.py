@@ -1,18 +1,16 @@
 import numpy as np
 import gym
 from gym import spaces
-
-import tensorflow as tf
 from random import random, randint
 from tensorforce.environments import Environment
 from tensorforce.agents import Agent
 from tensorforce.execution import Runner
-from heapq import nlargest
+from heapq import nlargest, nsmallest
 import matplotlib.pyplot as plt
 import numpy as np
+import math
 from datetime import datetime
 from packaging import version
-from tensorflow import keras
 
 
 def stdDeviaiton(array):
@@ -22,12 +20,37 @@ def stdDeviaiton(array):
             cleanedUp = np.append(cleanedUp, elem)
     return np.std(cleanedUp)
 
+def average(array):
+    cleanedUp = np.array([])
+    for elem in array:
+        if elem != 0:
+            cleanedUp = np.append(cleanedUp, elem)
+    return np.average(cleanedUp)
+
+def nDeterminer(array):
+    cleanedUp = np.array([])
+    for elem in array:
+        if elem != 0:
+            cleanedUp = np.append(cleanedUp, elem)
+    return len(cleanedUp)
 
 def findLastNonLen(action_arr, sampleCount):
     for i in range(len(action_arr)):
         if action_arr[i] == sampleCount and i > 2:
             return i - 1
     return len(action_arr) - 1
+
+def confidenceInterval(array):
+    mean = average(array)
+    stdDev = stdDeviaiton(array)
+    z = CustomEnvironment.zValue
+    n = nDeterminer(array)
+    low = mean - z * (stdDev / math.sqrt(n))
+    high = mean + z * (stdDev / math.sqrt(n))
+    return [high, low]
+
+
+
 
 
 # fakeArr = np.array([1, 1, 1, 1, 1, 1, 1, 2, 1, 5, 5, 5])
@@ -48,8 +71,9 @@ class CustomEnvironment(Environment):
     trdHighest_arr = np.array([])
     # allActions = np.array([])
     allEpisodes = np.array([])
+    zValue = 1.9610
 
-    for i in range(30000):
+    for i in range(3000):
         allEpisodes = np.append(allEpisodes, i)
 
 
@@ -135,7 +159,7 @@ class CustomEnvironment(Environment):
 
 
     def states(self):
-        return dict(type='float', shape=(len([0]),))
+        return dict(type='float', shape=(len([0, 0, 0]),))
 
     def actions(self):
         return dict(type='int', num_values=self.SAMPLES)
@@ -172,7 +196,7 @@ class CustomEnvironment(Environment):
         for i in range(self.SAMPLES):
             self.minSampling[i] = 0
         # here we convert to float32 to make it more general (in case we want to use continuous actions)
-        return np.array([0]).astype(np.float32)
+        return np.array([0, 0, 0]).astype(np.float32)
 
     def execute(self, actions):
         # self.extraCounter += 1
@@ -193,7 +217,7 @@ class CustomEnvironment(Environment):
             #     self.reward -= 1
             #     self.skippedRepeat += 1
             if actions == maxStdDev[0]:
-                self.reward += 1
+                self.reward = 1
                 self.highest += 1
             # elif actions == maxStdDev[1]:
             #     self.reward += 2
@@ -216,7 +240,6 @@ class CustomEnvironment(Environment):
             self.minSampling[actions] += 1
             self.agent_pos += 1
             print(list(self.stdDev.values()))
-            maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
         else:
             raise ValueError("Received invalid action={} which is not part of the action space".format(actions))
             # Account for the boundaries of the grid
@@ -240,7 +263,7 @@ class CustomEnvironment(Environment):
             CustomEnvironment.trdHighest_arr = np.append(CustomEnvironment.trdHighest_arr, self.trdHighest)
             # reward += 1
             self.sum += 1
-            if self.sum > 20000:
+            if self.sum > 2000:
                 # mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 # CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 # CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -249,7 +272,7 @@ class CustomEnvironment(Environment):
             print(self.minSampling)
         print("check", self.shape[1])
 
-        returning = np.array([maxStdDev[0]]).astype(np.float32), reward, done
+        returning = np.array(maxStdDev).astype(np.float32), reward, done
 
         return returning
 
@@ -260,7 +283,7 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(20000):
+    for _ in range(2000):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -272,7 +295,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(10000):
+    for _ in range(1000):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
@@ -291,63 +314,59 @@ def runEnv():
 
 
 
-def makePlot1():
-    # Data for plotting
-    x = CustomEnvironment.highest_arr
-    s = CustomEnvironment.allEpisodes
-
-
-    fig, ax = plt.subplots()
-    ax.plot(s, x)
-
-
-    ax.set(xlabel='Episode', ylabel='Number of Highest Standard Deviations Chosen',
-           title='Standard Deviation Choices per Episode')
-    ax.grid()
-
-    fig.savefig("test1.png")
-    plt.show()
-
-def makePlot2():
-    # Data for plotting
-    y = CustomEnvironment.sndHighest_arr
-    s = CustomEnvironment.allEpisodes
-
-
-    fig, ax = plt.subplots()
-    ax.plot(s, y)
-
-
-    ax.set(xlabel='Episode', ylabel='Number of Second Highest Standard Deviations Chosen',
-           title='Standard Deviation Choices per Episode')
-    ax.grid()
-
-    fig.savefig("test2.png")
-    plt.show()
-
-def makePlot3():
-    # Data for plotting
-    z = CustomEnvironment.trdHighest_arr
-    s = CustomEnvironment.allEpisodes
-
-
-    fig, ax = plt.subplots()
-    ax.plot(s, z)
-
-
-    ax.set(xlabel='Episode', ylabel='Number of Third Highest Standard Deviations Chosen',
-           title='Standard Deviation Choices per Episode')
-    ax.grid()
-
-    fig.savefig("test3.png")
-    plt.show()
+# def makePlot1():
+#     # Data for plotting
+#     x = CustomEnvironment.highest_arr
+#     s = CustomEnvironment.allEpisodes
+#
+#
+#     fig, ax = plt.subplots()
+#     ax.plot(s, x)
+#
+#
+#     ax.set(xlabel='Episode', ylabel='Number of Highest Standard Deviations Chosen',
+#            title='Standard Deviation Choices per Episode')
+#     ax.grid()
+#
+#     fig.savefig("test1.png")
+#     plt.show()
+#
+# def makePlot2():
+#     # Data for plotting
+#     y = CustomEnvironment.sndHighest_arr
+#     s = CustomEnvironment.allEpisodes
+#
+#
+#     fig, ax = plt.subplots()
+#     ax.plot(s, y)
+#
+#
+#     ax.set(xlabel='Episode', ylabel='Number of Second Highest Standard Deviations Chosen',
+#            title='Standard Deviation Choices per Episode')
+#     ax.grid()
+#
+#     fig.savefig("test2.png")
+#     plt.show()
+#
+# def makePlot3():
+#     # Data for plotting
+#     z = CustomEnvironment.trdHighest_arr
+#     s = CustomEnvironment.allEpisodes
+#
+#
+#     fig, ax = plt.subplots()
+#     ax.plot(s, z)
+#
+#
+#     ax.set(xlabel='Episode', ylabel='Number of Third Highest Standard Deviations Chosen',
+#            title='Standard Deviation Choices per Episode')
+#     ax.grid()
+#
+#     fig.savefig("test3.png")
+#     plt.show()
 
 if __name__ == "__main__":
     runEnv()
-    makePlot1()
-    makePlot2()
-    makePlot3()
-    logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
-    with tf.Session() as sess:
-        print(sess.run(runEnv()))
+    # makePlot1()
+    # makePlot2()
+    # makePlot3()
