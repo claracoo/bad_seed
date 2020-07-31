@@ -1,7 +1,7 @@
 import numpy as np
 import gym
 from gym import spaces
-from random import random
+from random import random, randint
 from tensorforce.environments import Environment
 from tensorforce.agents import Agent
 from tensorforce.execution import Runner
@@ -44,7 +44,7 @@ class CustomEnvironment(Environment):
     # allActions = np.array([])
     allEpisodes = np.array([])
 
-    for i in range(3000):
+    for i in range(3):
         allEpisodes = np.append(allEpisodes, i)
 
 
@@ -69,14 +69,15 @@ class CustomEnvironment(Environment):
             self.highest = 0
             self.sndHighest = 0
             self.trdHighest = 0
-            # self.simulation = [[0, 0, 0, 0, 0, 0, 7, 2, 0, 0], [0, 3, 0, 0, 0, 3, 0, 0, 0, 0],[0, 0, 2, 9, 0, 0, 0, 0, 0, 0],[0, 0, 0, 0, 1, 0, 0, 1, 0, 0],[0, 0, 0, 0, 0, 0, 1, 0, 8, 0]]
+            # self.simulation = []
+            self.worstSeed = randint(0, self.SAMPLES - 1)
 
 
             for i in range(self.SAMPLES):
                 col = []
                 for j in range(self.TRIALS):
                     if j < self.startingPoint:
-                        col.append(random())
+                        col.append(1)
                     else:
                         col.append(0)
                 self.GRID.append(col)
@@ -148,10 +149,11 @@ class CustomEnvironment(Environment):
         self.sndHighest = 0
         self.trdHighest = 0
         self.agent_pos = self.startingPoint
+        self.worstSeed = randint(0, self.SAMPLES - 1)
         for i in range(self.SAMPLES):
             for j in range(self.TRIALS):
                 if j < self.startingPoint:
-                    self.GRID[i][j] = random()
+                    self.GRID[i][j] = 1
                 else:
                     self.GRID[i][j] = 0
 
@@ -186,7 +188,7 @@ class CustomEnvironment(Environment):
             #     self.reward -= 1
             #     self.skippedRepeat += 1
             if actions == maxStdDev[0]:
-                self.reward += 1
+                self.reward = 1
                 self.highest += 1
             # elif actions == maxStdDev[1]:
             #     self.reward += 2
@@ -201,9 +203,14 @@ class CustomEnvironment(Environment):
             self.shape[0][self.agent_pos] = self.agent_pos
             self.shape[1][self.agent_pos] = actions
             self.shape[2][self.agent_pos] = self.reward
-            self.GRID[actions][self.agent_pos] = random()
+
+            if actions == self.worstSeed:
+                self.GRID[actions][self.agent_pos] = randint(0, 1000000)
+            else:
+                self.GRID[actions][self.agent_pos] = 1
             self.minSampling[actions] += 1
             self.agent_pos += 1
+            print(list(self.stdDev.values()))
         else:
             raise ValueError("Received invalid action={} which is not part of the action space".format(actions))
             # Account for the boundaries of the grid
@@ -227,7 +234,7 @@ class CustomEnvironment(Environment):
             CustomEnvironment.trdHighest_arr = np.append(CustomEnvironment.trdHighest_arr, self.trdHighest)
             # reward += 1
             self.sum += 1
-            if self.sum > 2000:
+            if self.sum > 2:
                 # mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 # CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 # CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -246,7 +253,7 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(2000):
+    for _ in range(2):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -258,7 +265,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(1000):
+    for _ in range(1):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
