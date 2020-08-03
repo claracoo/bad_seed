@@ -8,6 +8,7 @@ from tensorforce.execution import Runner
 from heapq import nlargest
 import matplotlib.pyplot as plt
 import numpy as np
+from tensorflow.python.keras.utils import losses_utils
 
 
 def stdDeviaiton(array):
@@ -262,6 +263,8 @@ def runEnv():
     # print('Mean episode reward:', sum_rewards / 100)
     # print(CustomEnvironment.firstCount, ",", CustomEnvironment.secondCount, ",", CustomEnvironment.thirdCount)
     print(CustomEnvironment.sum)
+
+
 
     # Close agent and environment
     agent.close()

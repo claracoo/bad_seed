@@ -13,6 +13,7 @@ import numpy as np
 from datetime import datetime
 from packaging import version
 from tensorflow import keras
+from tensorflow.python.keras.utils import losses_utils
 
 
 def stdDeviaiton(array):
@@ -48,8 +49,11 @@ class CustomEnvironment(Environment):
     trdHighest_arr = np.array([])
     # allActions = np.array([])
     allEpisodes = np.array([])
+    expected = np.array([])
+    actual = np.array([])
+    losses = np.array([])
 
-    for i in range(30000):
+    for i in range(10000):
         allEpisodes = np.append(allEpisodes, i)
 
 
@@ -155,6 +159,8 @@ class CustomEnvironment(Environment):
         self.trdHighest = 0
         self.agent_pos = self.startingPoint
         self.worstSeed = randint(0, self.SAMPLES - 1)
+        CustomEnvironment.actual = np.array([])
+        CustomEnvironment.expected = np.array([])
         for i in range(self.SAMPLES):
             for j in range(self.TRIALS):
                 if j < self.startingPoint:
@@ -180,6 +186,7 @@ class CustomEnvironment(Environment):
         maxStdDev = []
         reward = 0
         if (actions >= 0 and actions < self.SAMPLES):
+
             # CustomEnvironment.allActions = np.append(CustomEnvironment.allActions, actions)
             for i in range(self.SAMPLES):
                 self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
@@ -192,6 +199,8 @@ class CustomEnvironment(Environment):
             # elif actions == self.shape[1][self.agent_pos - 2]:
             #     self.reward -= 1
             #     self.skippedRepeat += 1
+            CustomEnvironment.expected = np.append(CustomEnvironment.expected, maxStdDev[0])
+            CustomEnvironment.actual = np.append(CustomEnvironment.actual, actions)
             if actions == maxStdDev[0]:
                 self.reward += 1
                 self.highest += 1
@@ -212,7 +221,7 @@ class CustomEnvironment(Environment):
             if actions == self.worstSeed:
                 self.GRID[actions][self.agent_pos] = randint(0, 1000000)
             else:
-                self.GRID[actions][self.agent_pos] = 1
+                self.GRID[actions][self.agent_pos] = randint(0, 10000)
             self.minSampling[actions] += 1
             self.agent_pos += 1
             print(list(self.stdDev.values()))
@@ -240,12 +249,23 @@ class CustomEnvironment(Environment):
             CustomEnvironment.trdHighest_arr = np.append(CustomEnvironment.trdHighest_arr, self.trdHighest)
             # reward += 1
             self.sum += 1
-            if self.sum > 20000:
+            if self.sum > 6000:
                 # mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 # CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 # CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
                 # CustomEnvironment.thirdCount += self.minSampling[mostChosen[2]]
                 CustomEnvironment.sum += reward
+            # bce = tf.keras.losses.BinaryCrossentropy()
+            # print(bce(CustomEnvironment.actual, CustomEnvironment.expected).numpy())
+            # CustomEnvironment.losses = np.append(CustomEnvironment.losses, bce(CustomEnvironment.actual, CustomEnvironment.expected))
+
+            # y_true = [[0, 1], [0, 0]]
+            # y_pred = [[0.6, 0.4], [0.4, 0.6]]
+            loss = tf.keras.losses.binary_crossentropy(CustomEnvironment.actual, CustomEnvironment.expected)
+            # assert loss.shape == (2,)
+            print("LOSSSSSS", type(loss))
+            # CustomEnvironment.losses = np.append(CustomEnvironment.losses, loss)
+
             print(self.minSampling)
         print("check", self.shape[1])
 
@@ -260,7 +280,7 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(20000):
+    for _ in range(6000):
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -272,7 +292,7 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(10000):
+    for _ in range(4000):
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
@@ -285,10 +305,28 @@ def runEnv():
     # print(CustomEnvironment.firstCount, ",", CustomEnvironment.secondCount, ",", CustomEnvironment.thirdCount)
     print(CustomEnvironment.sum)
 
+
     # Close agent and environment
     agent.close()
     environment.close()
 
+
+def lossPlot():
+    # Data for plotting
+    x = CustomEnvironment.losses
+    s = CustomEnvironment.allEpisodes
+
+
+    fig, ax = plt.subplots()
+    ax.plot(s, x)
+
+
+    ax.set(xlabel='Episode', ylabel='Loss',
+           title='Loss per Episode')
+    ax.grid()
+
+    fig.savefig("loss.png")
+    plt.show()
 
 
 def makePlot1():
@@ -347,7 +385,11 @@ if __name__ == "__main__":
     makePlot1()
     makePlot2()
     makePlot3()
-    logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
-    tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
-    with tf.Session() as sess:
-        print(sess.run(runEnv()))
+    lossPlot()
+    # logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    # tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
+    # with tf.Session() as sess:
+    #     print(sess.run(runEnv()))
+
+
+# lossPlot()
