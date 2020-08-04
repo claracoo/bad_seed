@@ -51,9 +51,10 @@ class CustomEnvironment(Environment):
     allEpisodes = np.array([])
     expected = np.array([])
     actual = np.array([])
-    losses = np.array([])
+    rewards = np.array([])
 
-    for i in range(10000):
+
+    for i in range(15000):
         allEpisodes = np.append(allEpisodes, i)
 
 
@@ -139,7 +140,7 @@ class CustomEnvironment(Environment):
 
 
     def states(self):
-        return dict(type='float', shape=(len([0]),))
+        return dict(type='float', shape=(len([0, 0, 0]),))
 
     def actions(self):
         return dict(type='int', num_values=self.SAMPLES)
@@ -178,21 +179,24 @@ class CustomEnvironment(Environment):
         for i in range(self.SAMPLES):
             self.minSampling[i] = 0
         # here we convert to float32 to make it more general (in case we want to use continuous actions)
-        return np.array([0]).astype(np.float32)
+        return np.array([0, 0, 0]).astype(np.float32)
 
     def execute(self, actions):
         # self.extraCounter += 1
         CustomEnvironment.extraCounter += 1
         maxStdDev = []
         reward = 0
-        if (actions >= 0 and actions < self.SAMPLES):
+        randomizer = randint(0, 2)
 
+        if (actions >= 0 and actions < self.SAMPLES):
             # CustomEnvironment.allActions = np.append(CustomEnvironment.allActions, actions)
             for i in range(self.SAMPLES):
                 self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
-            print(actions, maxStdDev)
-            print(actions, "vs.", self.shape[1][self.agent_pos - 1])
+            # if randomizer == 0:
+            #     maxStdDev[0] == randint(0, self.SAMPLES - 1)
+            # print(actions, maxStdDev)
+            # print(actions, "vs.", self.shape[1][self.agent_pos - 1])
             # if actions == self.shape[1][self.agent_pos - 1]:
             #     self.reward -= 1
             #     self.repeatCounter += 1
@@ -204,6 +208,10 @@ class CustomEnvironment(Environment):
             if actions == maxStdDev[0]:
                 self.reward += 1
                 self.highest += 1
+            if actions == maxStdDev[1]:
+                self.sndHighest += 1
+            if actions == maxStdDev[2]:
+                self.trdHighest += 1
             # elif actions == maxStdDev[1]:
             #     self.reward += 2
             #     self.sndHighest += 1
@@ -221,10 +229,10 @@ class CustomEnvironment(Environment):
             if actions == self.worstSeed:
                 self.GRID[actions][self.agent_pos] = randint(0, 1000000)
             else:
-                self.GRID[actions][self.agent_pos] = randint(0, 10000)
+                self.GRID[actions][self.agent_pos] = randint(0, 1000000)
             self.minSampling[actions] += 1
             self.agent_pos += 1
-            print(list(self.stdDev.values()))
+            # print(list(self.stdDev.values()))
             maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
         else:
             raise ValueError("Received invalid action={} which is not part of the action space".format(actions))
@@ -242,14 +250,15 @@ class CustomEnvironment(Environment):
         done = bool(self.agent_pos == self.TRIALS)
 
         reward = self.reward
-        print(reward)
+        # print(reward)
         if done:
             CustomEnvironment.highest_arr = np.append(CustomEnvironment.highest_arr, self.highest)
             CustomEnvironment.sndHighest_arr = np.append(CustomEnvironment.sndHighest_arr, self.sndHighest)
             CustomEnvironment.trdHighest_arr = np.append(CustomEnvironment.trdHighest_arr, self.trdHighest)
             # reward += 1
             self.sum += 1
-            if self.sum > 6000:
+            CustomEnvironment.rewards = np.append(CustomEnvironment.rewards, reward)
+            if self.sum > 10000:
                 # mostChosen = nlargest(3, self.minSampling, key=self.minSampling.get)
                 # CustomEnvironment.firstCount += self.minSampling[mostChosen[0]]
                 # CustomEnvironment.secondCount += self.minSampling[mostChosen[1]]
@@ -263,13 +272,13 @@ class CustomEnvironment(Environment):
             # y_pred = [[0.6, 0.4], [0.4, 0.6]]
             loss = tf.keras.losses.binary_crossentropy(CustomEnvironment.actual, CustomEnvironment.expected)
             # assert loss.shape == (2,)
-            print("LOSSSSSS", type(loss))
+            # print("LOSSSSSS", type(loss))
             # CustomEnvironment.losses = np.append(CustomEnvironment.losses, loss)
+            #
+            # print(self.minSampling)
+        # print("check", self.shape[1])
 
-            print(self.minSampling)
-        print("check", self.shape[1])
-
-        returning = np.array([maxStdDev[0]]).astype(np.float32), reward, done
+        returning = np.array(maxStdDev).astype(np.float32), reward, done
 
         return returning
 
@@ -280,7 +289,8 @@ def runEnv():
     agent = Agent.create(agent='a2c', environment=environment, batch_size=10, learning_rate=1e-3)
 
     # Train for 200 episodes
-    for _ in range(6000):
+    for _ in range(10000):
+        print("Episode:  ", _)
         states = environment.reset()
         terminal = False
         while CustomEnvironment.extraCounter != 100:
@@ -292,7 +302,8 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(4000):
+    for _ in range(5000):
+        print("Episode:  ", _ + 10000)
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
@@ -313,7 +324,7 @@ def runEnv():
 
 def lossPlot():
     # Data for plotting
-    x = CustomEnvironment.losses
+    x = CustomEnvironment.rewards
     s = CustomEnvironment.allEpisodes
 
 
@@ -321,11 +332,11 @@ def lossPlot():
     ax.plot(s, x)
 
 
-    ax.set(xlabel='Episode', ylabel='Loss',
+    ax.set(xlabel='Episode', ylabel='Rewards',
            title='Loss per Episode')
     ax.grid()
 
-    fig.savefig("loss.png")
+    fig.savefig("rewards.png")
     plt.show()
 
 
@@ -380,11 +391,52 @@ def makePlot3():
     fig.savefig("test3.png")
     plt.show()
 
+def badSeedsPlot():
+    badSeeds = CustomEnvironment.highest_arr
+    total1 = 0
+    total2 = 0
+    total3 = 0
+    for i in range(len(CustomEnvironment.highest_arr)):
+        badSeeds[i] += (CustomEnvironment.sndHighest_arr[i] + CustomEnvironment.trdHighest_arr[i])
+        total1 += CustomEnvironment.highest_arr[i]
+        total2 += CustomEnvironment.sndHighest_arr[i]
+        total3 += CustomEnvironment.trdHighest_arr[i]
+    z = badSeeds
+    s = CustomEnvironment.allEpisodes
+
+
+    fig, ax = plt.subplots()
+    ax.plot(s, z)
+
+
+    ax.set(xlabel='Episode', ylabel='Number of Third Highest Standard Deviations Chosen',
+           title='Standard Deviation Choices per Episode')
+    ax.grid()
+
+    fig.savefig("total.png")
+    plt.show()
+
+    total1 = total1 / 15000
+    total2 = total2 / 15000
+    total3 = total3 / 15000
+    other = 100 - total1 - total2 - total3
+    # Pie chart, where the slices will be ordered and plotted counter-clockwise:
+    labels = 'Highest Standard Deviation', 'Second Highest Standard Deviation', 'Third Highest Standard Deviation', 'Other'
+    sizes = [total1, total2, total3, other]
+
+    fig1, ax1 = plt.subplots()
+    ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
+            shadow=True, startangle=90)
+    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+    fig1.savefig("totalPie.png")
+    plt.show()
+
 if __name__ == "__main__":
     runEnv()
     makePlot1()
     makePlot2()
     makePlot3()
+    badSeedsPlot()
     lossPlot()
     # logdir = "logs/scalars/" + datetime.now().strftime("%Y%m%d-%H%M%S")
     # tensorboard_callback = keras.callbacks.TensorBoard(log_dir=logdir)
