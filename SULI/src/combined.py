@@ -14,8 +14,9 @@ from datetime import datetime
 from packaging import version
 from tensorflow import keras
 from tensorflow.python.keras.utils import losses_utils
+import scipy.stats as st
 
-
+#finds the standard deviation but takes into account that the 0s are null
 def stdDeviaiton(array):
     cleanedUp = np.array([])
     for elem in array:
@@ -23,12 +24,24 @@ def stdDeviaiton(array):
             cleanedUp = np.append(cleanedUp, elem)
     return np.std(cleanedUp)
 
-
+#the null value is the sampleCount, meaning we want to put the new value at the first one that is not the auto measured ones
+#not used in end product, simulation dissolved
 def findLastNonLen(action_arr, sampleCount):
     for i in range(len(action_arr)):
         if action_arr[i] == sampleCount and i > 2:
             return i - 1
     return len(action_arr) - 1
+
+#a way to calculate what makes a standard deviaiton unusually high
+#parameterizes what is "unusual" in terms of percent
+#percent must be under 1
+# returns the upper bound of unusual
+def confidenceIntervalMax(array, percent, n):
+    average = np.average(array)
+    sd = np.std(array)
+    zValue = st.norm.ppf(percent)
+    conHigh = average + zValue * (sd / np.sqrt(n))
+    return conHigh
 
 
 # fakeArr = np.array([1, 1, 1, 1, 1, 1, 1, 2, 1, 5, 5, 5])
@@ -37,13 +50,21 @@ def findLastNonLen(action_arr, sampleCount):
 
 
 class CustomEnvironment(Environment):
+    #while the standard number of bad seeds is 3, it can be channged to anything between 0 and the number of samples
+    badSeedCount = 3
     # LEFT = 0
     # RIGHT = 1
+    #sum of all rewards during testing
     sum = 0
+    #represents the index of where the game actually starts, since the first 3 measurements are automatic
+    #redefined in env
     extraCounter = 3
     firstCount = 0
     secondCount = 0
     thirdCount = 0
+    testingEps = 100
+    trainingEps = 5
+    trials = 100
     highest_arr = np.array([])
     sndHighest_arr = np.array([])
     trdHighest_arr = np.array([])
@@ -57,25 +78,31 @@ class CustomEnvironment(Environment):
     violinGrid = []
     badseedsFinal= []
 
-
-    for i in range(105):
+    #creates x axis for most graphs, for episode count
+    for i in range(testingEps + trainingEps):
         allEpisodes = np.append(allEpisodes, i)
 
-
-    # def __init__(self):
+    #when env first initialized
     def __init__(self):
             super().__init__()
-
+            #index of true start of gamified measurements
             self.startingPoint = 3
             CustomEnvironment.extraCounter = self.startingPoint
-            # Initialize the agent at the right of the grid
+            # Initialize the agent at the left of the grid, keeps track of where we are
             self.agent_pos = self.startingPoint
             self._max_episode_timesteps = 500
-            self.TRIALS = 100
+            self.TRIALS = CustomEnvironment.trials
             self.SAMPLES = 10
+            self.confidence = 0.95
+            #min nnumber of measurements necessary to make a judgement on if the std dev is unusually high
+            #true min measurements is this number plus 3, since 3 auto measurements taken
+            self.minMeasurements = 5
             self.GRID = []
             gridCopy = []
+            #how many times (not including auto measurements) each sample has been chosen per round
+            #keys are samples, times chosen are values
             self.minSampling = {}
+            # keys are samples, associated std devs are values
             self.stdDev = {}
             # self.stdDevSim = {}
             self.sum = 0
@@ -86,10 +113,15 @@ class CustomEnvironment(Environment):
             self.state = [0, 0, 0]
             self.repeatCounter = 0
             self.skippedRepeat = 0
+            #gives the agent extra points for choosing a sample that they haven't chosen in a while
             self.bank = {}
-            self.badseeds = [self.SAMPLES, self.SAMPLES, self.SAMPLES]
+            #null values for which samples are bad seeds
+            self.badseeds = []
+            for i in range(CustomEnvironment.badSeedCount):
+                self.badseeds.append(self.SAMPLES)
 
             # self.simulation = []
+            #simulation use only
             self.worstSeed = randint(0, self.SAMPLES - 1)
 
 
@@ -106,6 +138,7 @@ class CustomEnvironment(Environment):
 
             # second length will be the actions, but actions is not in scope in init
             # the width should always be the number of trials
+            # simulation use only
             self.shapeHeight = len(self.GRID) + len([self.agent_pos]) + len([0]) + len([0])
 
             for i in range(self.SAMPLES):
@@ -152,7 +185,13 @@ class CustomEnvironment(Environment):
 
 
     def states(self):
-        return dict(type='float', shape=(len([0, 0, 0, 0, 0, 0]),))
+        #shape is [highest std dev index, last chosen index, penultimate chosen index, badseed1, badseed2, badseed3]
+        stateArr = [0]
+        for i in range(CustomEnvironment.badSeedCount - 1):
+            stateArr.append(0)
+        for i in range(CustomEnvironment.badSeedCount):
+            stateArr.append(0)
+        return dict(type='float', shape=(len(stateArr),))
 
     def actions(self):
         return dict(type='int', num_values=self.SAMPLES)
@@ -166,7 +205,9 @@ class CustomEnvironment(Environment):
     def reset(self):
         # self.extraCounter = self.startingPoint
         CustomEnvironment.extraCounter = self.startingPoint
-        self.badseeds = [self.SAMPLES, self.SAMPLES, self.SAMPLES]
+        self.badseeds = []
+        for i in range(CustomEnvironment.badSeedCount):
+            self.badseeds.append(self.SAMPLES)
         self.reward = 0
         self.highest = 0
         self.sndHighest = 0
@@ -181,11 +222,12 @@ class CustomEnvironment(Environment):
         for i in range(self.SAMPLES):
             for j in range(self.TRIALS):
                 if j < self.startingPoint:
+                    #automatic measuring
                     self.GRID[i][j] = randint(0, 1000000)
                 else:
                     self.GRID[i][j] = 0
             self.bank[i] = 0
-
+        #not used inn final version (shape simplified)
         for i in range(self.TRIALS):
             self.shape[0][i] = self.TRIALS
             self.shape[1][i] = self.SAMPLES
@@ -197,15 +239,22 @@ class CustomEnvironment(Environment):
             self.minSampling[i] = 0
             self.bank[i] = 0
         # here we convert to float32 to make it more general (in case we want to use continuous actions)
-        return np.array([0, 0, 0, 0, 0, 0]).astype(np.float32)
+        stateArr = [0]
+        for i in range(CustomEnvironment.badSeedCount - 1):
+            stateArr.append(0)
+        for i in range(CustomEnvironment.badSeedCount):
+            stateArr.append(0)
+        return np.array(stateArr).astype(np.float32)
 
     def execute(self, actions):
         # self.extraCounter += 1
         CustomEnvironment.extraCounter += 1
         maxStdDev = []
         reward = 0
+        #variable ratio schedule of 2/3
         randomizer = randint(0, 2)
 
+        #making sure this is a valid action
         if (actions >= 0 and actions < self.SAMPLES):
             # CustomEnvironment.allActions = np.append(CustomEnvironment.allActions, actions)
             # for i in range(self.SAMPLES):
@@ -214,14 +263,14 @@ class CustomEnvironment(Environment):
             if len(maxStdDev) == 0:
                 for i in range(self.SAMPLES):
                     self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
-                maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
-            average = np.average(list(self.stdDev.values()))
-            sd = np.std(list(self.stdDev.values()))
-            zValue = 1.96
-            conHigh = average + zValue * (sd / np.sqrt(self.SAMPLES))
+                maxStdDev = nlargest(CustomEnvironment.badSeedCount, self.stdDev, key=self.stdDev.get)
+            # finding the threshold for being an unusually high standard dev
+            conHigh = confidenceIntervalMax(list(self.stdDev.values()), self.confidence, self.SAMPLES)
+            #once we are confident in the fact that is a bad seed, we do not need many adidtional measurements
             if actions in self.badseeds:
                 self.reward -= 2
-            if self.stdDev[actions] > conHigh and self.minSampling[actions] > 5:
+            # if it is unusually high, and we have the minimum amount of measuremnts we to define this:
+            if self.stdDev[actions] > conHigh and self.minSampling[actions] > self.minMeasurements:
                 changed = False
                 for i in range(len(self.badseeds)):
                     if changed == False and self.badseeds[i] == self.SAMPLES and actions not in self.badseeds:
@@ -230,18 +279,27 @@ class CustomEnvironment(Environment):
             print(actions, maxStdDev)
             # print(actions, maxStdDev)
             # print(actions, "vs.", self.shape[1][self.agent_pos - 1])
-            if actions == self.shape[1][self.agent_pos - 1]:
-                self.reward -= 1
-                self.repeatCounter += 1
-            elif actions == self.shape[1][self.agent_pos - 2]:
-                self.reward -= 1
-                self.skippedRepeat += 1
-            else:
-                self.reward += 1
+
+            #penalizing for repeats
+            for i in range(CustomEnvironment.badSeedCount - 1):
+                if actions == self.shape[1][self.agent_pos - (i + 1)]:
+                    self.reward -= 1
+                    self.repeatCounter += 1
+                else:
+                    self.reward += 1
+            # if actions == self.shape[1][self.agent_pos - 1]:
+            #     self.reward -= 1
+            #     self.repeatCounter += 1
+            # elif actions == self.shape[1][self.agent_pos - 2]:
+            #     self.reward -= 1
+            #     self.skippedRepeat += 1
+            # else:
+            #     self.reward += 1
             CustomEnvironment.expected = np.append(CustomEnvironment.expected, maxStdDev[0])
             CustomEnvironment.actual = np.append(CustomEnvironment.actual, actions)
+            #rewarding for getting the highest std dev
             if actions == maxStdDev[0]:
-                self.reward += 3
+                self.reward += CustomEnvironment.badSeedCount
                 self.highest += 1
             if actions == maxStdDev[1]:
                 # self.reward += 2
@@ -249,8 +307,10 @@ class CustomEnvironment(Environment):
             if actions == maxStdDev[2]:
                 # self.reward += 1
                 self.trdHighest += 1
+            #rewarding if chosen onne that has not been chosen in a while
             if actions == nlargest(1, self.bank, key=self.bank.get)[0]:
                 self.reward += self.bank[actions]
+            #buildinng up a greater reward, the longer it is not chosen
             for i in range(self.SAMPLES):
                 if actions != i:
                     self.bank[i] += 1
@@ -261,22 +321,30 @@ class CustomEnvironment(Environment):
             self.shape[1][self.agent_pos] = actions
             self.shape[2][self.agent_pos] = self.reward
 
+            #how the measurements get made, not necessary to differentiate now that simulation is over
             if actions == self.worstSeed:
                 self.GRID[actions][self.agent_pos] = randint(0, 1000000)
             else:
                 self.GRID[actions][self.agent_pos] = randint(0, 1000000)
+
+            #keeping track of how many times we have chosen it
             self.minSampling[actions] += 1
+            #moving where we are in the game
             self.agent_pos += 1
             # print(list(self.stdDev.values()))
+
+            #we want to remeasure the std devs at the end to feed to the next round
             for i in range(self.SAMPLES):
                 self.stdDev[i] = stdDeviaiton(array=self.GRID[i])
+                #if it is already a bad seed we do not want it to contribute the standard devs because it will always be one of the highest
                 if i in self.badseeds:
                     self.stdDev[i] = 0
-            maxStdDev = nlargest(3, self.stdDev, key=self.stdDev.get)
+            maxStdDev = nlargest(CustomEnvironment.badSeedCount, self.stdDev, key=self.stdDev.get)
             if randomizer == 0:
                 maxStdDev[0] == randint(0, self.SAMPLES - 1)
             self.state = [maxStdDev[0]]
-            self.state = np.append(self.state, self.shape[1][self.agent_pos - 2])
+            for i in range(CustomEnvironment.badSeedCount - 2):
+                self.state = np.append(self.state, self.shape[1][self.agent_pos - (i + 2)])
             self.state = np.append(self.state, actions)
             for seed in self.badseeds:
                 self.state = np.append(self.state, seed)
@@ -290,6 +358,7 @@ class CustomEnvironment(Environment):
 
         reward = self.reward
         if done:
+            #all for graphing purposes
             CustomEnvironment.repeatCounter_arr = np.append(CustomEnvironment.repeatCounter_arr, self.repeatCounter)
             CustomEnvironment.skippedRepeat_arr = np.append(CustomEnvironment.skippedRepeat_arr, self.skippedRepeat)
             CustomEnvironment.highest_arr = np.append(CustomEnvironment.highest_arr, self.highest)
@@ -299,13 +368,14 @@ class CustomEnvironment(Environment):
             self.sum += 1
             CustomEnvironment.rewards = np.append(CustomEnvironment.rewards, reward)
             CustomEnvironment.violinGrid = self.GRID
-            if self.sum > 100:
+            if self.sum > CustomEnvironment.trainingEps:
                 CustomEnvironment.sum += reward
 
         returning = np.array(self.state).astype(np.float32), reward, done
 
         return returning
 
+#runnning the environment
 def runEnv():
     environment = Environment.create(
         environment=CustomEnvironment, max_episode_timesteps=500
@@ -328,11 +398,11 @@ def runEnv():
     )
 
     # Train for 200 episodes
-    for _ in range(100000):
+    for _ in range(CustomEnvironment.trainingEps):
         print("Episode:  ", _)
         states = environment.reset()
         terminal = False
-        while CustomEnvironment.extraCounter != 100:
+        while CustomEnvironment.extraCounter != CustomEnvironment.trials:
             actions = agent.act(states=states)
             # print(actions)
             # print(states)
@@ -342,12 +412,12 @@ def runEnv():
 
     # Evaluate for 100 episodes
     sum_rewards = 0.0
-    for _ in range(5000):
-        print("Episode:  ", _ + 100000)
+    for _ in range(CustomEnvironment.testingEps):
+        print("Episode:  ", _ + CustomEnvironment.trainingEps)
         states = environment.reset()
         internals = agent.initial_internals()
         terminal = False
-        while CustomEnvironment.extraCounter != 100:
+        while CustomEnvironment.extraCounter != CustomEnvironment.trials:
             actions, internals = agent.act(states=states, internals=internals, independent=True)
             states, terminal, reward = environment.execute(actions=actions)
             sum_rewards += reward
@@ -373,7 +443,7 @@ def lossPlot():
 
 
     ax.set(xlabel='Episode', ylabel='Rewards',
-           title='Loss per Episode')
+           title='Rewards per Episode')
     ax.grid()
 
     fig.savefig("rewards.png")
